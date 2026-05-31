@@ -25,7 +25,7 @@
 ```
 ┌──────────────┐      Anthropic API 格式        ┌─────────────────┐
 │  Claude Code │ ──────────────────────────────→ │    cc-switch     │
-│              │   ANTHROPIC_BASE_URL=           │  (端口 15721)    │
+│              │   ANTHROPIC_BASE_URL=           │  本地路由 (15721)  │
 │              │   http://127.0.0.1:15721         │                  │
 └──────────────┘                                  └────────┬────────┘
                                                           │
@@ -94,7 +94,7 @@ node install.js
 | 依赖 | 要求 | 备注 |
 |------|------|------|
 | Node.js | ≥ 18 | 使用 ESM、fetch API |
-| cc-switch | 运行在 127.0.0.1:15721 | 将 Claude Code 的 Anthropic 请求转为 OpenAI 格式 |
+| cc-switch | 已开启本地路由，默认端口 15721 | 将 Claude Code 的 Anthropic 请求转为 OpenAI 格式 |
 | VL API Key | 千问 / OpenAI / 兼容接口 | 用于图片识别 |
 
 ---
@@ -110,7 +110,7 @@ node install.js
 ╚══════════════════════════════════════════════╝
 
    Node.js v22.x ✓
-   cc-switch 运行中 (端口 15721) ✓
+   cc-switch 本地路由已开启 (端口 15721) ✓
    安装目录: C:\Users\xxx\.claude\scripts\image-proxy
 
 --- VL Provider 配置 ---
