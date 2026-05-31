@@ -395,6 +395,10 @@ curl http://127.0.0.1:8787/health
 
 返回中文错误信息给 Claude Code：`[图片识别失败: HTTP 503]` 等。可恢复的错误（HTTP 5xx）自动重试一次。
 
+### Q: 每次会话都执行 SessionStart hook，会不会启动一堆重复的 image-proxy 进程？
+
+不会。image-proxy 启动时会检测端口 8787 是否已被占用——如果端口已在使用且 `/health` 返回正常，新进程会静默退出（`Already running, exiting.`），确保只有一个实例在后台运行。
+
 ---
 
 ## 项目结构
