@@ -1,4 +1,4 @@
-# Claude Vision Skill
+# image-proxy
 
 让 Claude Code「看见」图片。当 Claude Code 通过 DeepSeek 或其他非原生视觉模型中转时，自动拦截请求中的图片块，调用视觉语言模型（VL Model，如千问 VL / GPT-4o）识别图片内容，替换为文字描述后继续转发。
 

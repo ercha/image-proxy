@@ -1,5 +1,5 @@
 {
-  "name": "claude-vision-skill",
+  "name": "image-proxy",
   "version": "1.0.0",
   "description": "让 Claude Code 通过 DeepSeek 等非原生视觉模型「看见」图片 — 自动拦截图片块，调用 VL 模型识别，替换为文字描述后转发",
   "author": "ercha",

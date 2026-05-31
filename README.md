@@ -1,4 +1,4 @@
-# Claude Vision Skill
+# image-proxy
 
 让 Claude Code「看见」图片 — 一个零外部依赖的 Node.js 代理，自动拦截 Anthropic 格式请求中的图片块，调用视觉语言模型（VL Model）识别为文字描述，再转发给上游 LLM。
 
@@ -6,7 +6,7 @@
 
 ## 目录
 
-- [Claude Vision Skill](#claude-vision-skill)
+- [image-proxy](#image-proxy)
   - [目录](#目录)
   - [工作原理](#工作原理)
   - [快速开始](#快速开始)
@@ -404,7 +404,7 @@ curl http://127.0.0.1:8787/health
 ## 项目结构
 
 ```
-claude-vision-skill/
+image-proxy/
 ├── CLAUDE.md              # Skill 元信息
 ├── skill.json             # Skill 声明
 ├── install.js             # 交互式安装脚本
