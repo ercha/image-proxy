@@ -1,66 +1,42 @@
 # image-proxy
 
-让 Claude Code「看见」图片 — 一个零外部依赖的 Node.js 代理，自动拦截 Anthropic 格式请求中的图片块，调用视觉语言模型（VL Model）识别为文字描述，再转发给上游 LLM。
+让 Claude Code「看见」图片 — 一个零外部依赖的 Node.js 代理，拦截 Anthropic 格式请求中的图片块，调用视觉语言模型（VL Model）识别为文字描述，再转发给上游 LLM。
 
 ---
 
 ## 目录
 
-- [image-proxy](#image-proxy)
-  - [目录](#目录)
-  - [工作原理](#工作原理)
-  - [快速开始](#快速开始)
-  - [前置依赖](#前置依赖)
-  - [交互式安装](#交互式安装)
-  - [配置文件详解](#配置文件详解)
-    - [配置优先级](#配置优先级)
-    - [完整配置项](#完整配置项)
-    - [config.json 示例](#configjson-示例)
-  - [与 cc-switch 配合使用](#与-cc-switch-配合使用)
-    - [为什么需要 Common Config？](#为什么需要-common-config)
-    - [配置步骤](#配置步骤)
-    - [验证是否生效](#验证是否生效)
-  - [支持的 VL Provider 矩阵](#支持的-vl-provider-矩阵)
-  - [独立运行（不使用 cc-switch）](#独立运行不使用-cc-switch)
-  - [调试与日志](#调试与日志)
-  - [常见问题](#常见问题)
-    - [Q: 图片识别的效果如何？](#q-图片识别的效果如何)
-    - [Q: 多张图片会串行处理吗？](#q-多张图片会串行处理吗)
-    - [Q: 图片太大怎么办？](#q-图片太大怎么办)
-    - [Q: 支持流式响应吗？](#q-支持流式响应吗)
-    - [Q: 会不会影响不带图片的普通对话？](#q-会不会影响不带图片的普通对话)
-    - [Q: VL 模型调用失败时怎么处理？](#q-vl-模型调用失败时怎么处理)
-  - [项目结构](#项目结构)
-  - [许可](#许可)
+- [工作原理](#工作原理)
+- [快速开始](#快速开始)
+- [前置依赖](#前置依赖)
+- [交互式安装](#交互式安装)
+- [配置文件详解](#配置文件详解)
+- [配置 settings.json](#配置-settingsjson)
+- [支持的 VL Provider 矩阵](#支持的-vl-provider-矩阵)
+- [调试与日志](#调试与日志)
+- [常见问题](#常见问题)
+- [项目结构](#项目结构)
 
 ---
 
 ## 工作原理
 
 ```
-┌──────────────┐                                 ┌─────────────────┐
-│  Claude Code │ ──────────────────────────────→ │    cc-switch     │
-│              │   http://127.0.0.1:15721        │  本地路由 (15721)  │
-│              │                                 │                  │
+┌──────────────┐      Anthropic Messages API     ┌─────────────────┐
+│  Claude Code │ ──────────────────────────────→ │   image-proxy    │
+│              │   ANTHROPIC_BASE_URL=           │   (端口 8787)    │
+│              │   http://127.0.0.1:8787          │                  │
 └──────────────┘                                  └────────┬────────┘
-                                                           │
-                                        Anthropic→OpenAI   │
-                                          格式转换后转发    │
-                                                           ▼
-                                                 ┌─────────────────┐
-                                                 │  image-proxy     │
-                                                 │  (端口 8787)     │
-                                                 │                  │
-                                                 │ 1. 扫描 body     │
-                                                 │ 2. 检测 image    │
-                                                 │ 3. VL 模型识别    │
-                                                 │ 4. 替换为文字     │
-                                                 └────────┬────────┘
                                                           │
+                                         1. 检测 image block │
+                                         2. VL 模型识别       │
+                                         3. 替换为文字        │
+                                         4. 原样转发           │
                                                           ▼
                                                  ┌─────────────────┐
                                                  │  DeepSeek /      │
                                                  │  其他 LLM API    │
+                                                 │  /anthropic 端点  │
                                                  └─────────────────┘
 ```
 
@@ -78,14 +54,14 @@
 [图片描述结束]
 ```
 
-5. 修改后的 body 继续转发到上游 LLM
+5. 修改后的 body 原样以 Anthropic Messages API 格式转发到上游 LLM（如 DeepSeek `/anthropic`）
 
 **特点：**
 
 - **零外部 npm 依赖** — 仅使用 Node.js 内置模块 (`http`, `https`, `fs`)
 - **并行处理** — 多张图片同时识别，不串行等待
 - **自动重试** — HTTP 5xx 等可恢复错误自动重试一次
-- **透明透传** — 非 `/v1/messages` 路径直接透传，不影响其他 API 调用
+- **透明透传** — 非 `/v1/messages` 路径和不含图片的请求直接透传，零开销
 - **Provider 可插拔** — 任何兼容 OpenAI `/chat/completions` 格式的 VL 服务均可使用
 
 ---
@@ -96,10 +72,10 @@
 # 1. 安装交互式向导
 node install.js
 
-# 2. 按提示配置 Provider、API Key、模型
+# 2. 按提示配置 VL Provider、API Key、模型
 # 3. 向导自动写入 config.json 并复制文件到 ~/.claude/scripts/image-proxy/
-# 4. 将启动 hook 添加到 cc-switch Common Config（见下文）
-# 5. 重启 cc-switch，完成
+# 4. 配置 ~/.claude/settings.json 的 ANTHROPIC_BASE_URL 指向 image-proxy（见下文）
+# 5. 重启 Claude Code，完成
 ```
 
 ---
@@ -109,8 +85,8 @@ node install.js
 | 依赖 | 要求 | 备注 |
 |------|------|------|
 | Node.js | ≥ 18 | 使用 ESM、fetch API |
-| cc-switch | 已开启本地路由，默认端口 15721 | 将 Claude Code 的 Anthropic 请求转为 OpenAI 格式 |
 | VL API Key | 千问 / OpenAI / 兼容接口 | 用于图片识别 |
+| 上游 LLM | DeepSeek / 其他支持 Anthropic Messages API 的服务 | `/anthropic` 端点 |
 
 ---
 
@@ -125,7 +101,6 @@ node install.js
 ╚══════════════════════════════════════════════╝
 
    Node.js v22.x ✓
-   cc-switch 本地路由已开启 (端口 15721) ✓
    安装目录: C:\Users\xxx\.claude\scripts\image-proxy
 
 --- VL Provider 配置 ---
@@ -148,8 +123,6 @@ Base URL [https://dashscope.aliyuncs.com/compatible-mode/v1]:
 
 确认写入? [Y/n]:
 ```
-
-**仅在 `VISION_PROVIDER=custom` 时 `VISION_BASE_URL` 是必填的**，其他 provider 有默认值。
 
 ---
 
@@ -174,6 +147,8 @@ Base URL [https://dashscope.aliyuncs.com/compatible-mode/v1]:
 | 端口 | `IMAGE_PROXY_PORT` | `port` | `8787` | 代理监听端口 |
 | 提示词 | `VISION_PROMPT` | `prompt` | 中文详细描述 | 发送给 VL 模型的提示词 |
 | 调试 | `DEBUG` | - | `false` | 设为 `true` 开启详细日志 |
+| 上游地址 | `UPSTREAM_HOST` | - | `api.deepseek.com` | 上游 LLM 主机 |
+| 上游路径 | `UPSTREAM_PATH` | - | `/anthropic` | 上游 LLM 端点路径 |
 
 ### config.json 示例
 
@@ -214,28 +189,29 @@ Base URL [https://dashscope.aliyuncs.com/compatible-mode/v1]:
 
 ---
 
-## 与 cc-switch 配合使用
+## 配置 settings.json
 
-### 为什么需要 Common Config？
+image-proxy 启动后，需要让 Claude Code 把请求发到代理端口，而不是直接发到 DeepSeek。
 
-cc-switch 切换供应商时，会用新供应商的配置**整体覆写** `~/.claude/settings.json`。这意味着：
+在 `~/.claude/settings.json` 中设置：
 
-- 手动添加的 `hooks`（启动 image-proxy）会被清掉
-- 手动添加的 `env.VISION_*` 也会被清掉
+```json
+{
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "sk-your-deepseek-api-key",
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8787"
+  }
+}
+```
 
-image-proxy v1.0 已改用独立配置文件，**不再依赖 settings.json 的 env**。但启动 hook 仍需通过 cc-switch 的 **Common Config** 来持久化。
+- `ANTHROPIC_BASE_URL` — 指向 image-proxy 本地地址
+- `ANTHROPIC_AUTH_TOKEN` — 你的 DeepSeek API Key（image-proxy 会原样转发给上游）
 
-### 配置步骤
+> **如果使用其他支持 Anthropic Messages API 的上游服务：** 通过环境变量 `UPSTREAM_HOST` 和 `UPSTREAM_PATH` 修改上游地址。
 
-**步骤 1 — 打开 Common Config**
+### 自动启动 image-proxy（可选）
 
-cc-switch UI → 设置 → Common Config
-
-**步骤 2 — 添加 Hook**
-
-在 Common Config 中添加以下内容：
-
-**Windows（PowerShell）：**
+在 settings.json 中配置 SessionStart hook，让每次 Claude Code 启动时自动在后台拉起 image-proxy：
 
 ```json
 {
@@ -244,7 +220,6 @@ cc-switch UI → 设置 → Common Config
       "hooks": [{
         "command": "Start-Process -WindowStyle Hidden -FilePath 'node' -ArgumentList 'C:\\Users\\<用户名>\\.claude\\scripts\\image-proxy\\image-proxy.js'",
         "shell": "powershell",
-        "timeout": 10,
         "type": "command"
       }]
     }]
@@ -252,39 +227,7 @@ cc-switch UI → 设置 → Common Config
 }
 ```
 
-**macOS / Linux（Shell）：**
-
-```json
-{
-  "hooks": {
-    "SessionStart": [{
-      "hooks": [{
-        "command": "node $HOME/.claude/scripts/image-proxy/image-proxy.js &",
-        "timeout": 10,
-        "type": "command"
-      }]
-    }]
-  }
-}
-```
-
-> **注意：** 将 `<用户名>` 替换为你的实际用户名，或使用完整路径 `%USERPROFILE%\.claude\scripts\image-proxy\image-proxy.js`。
-
-**步骤 3 — 保存并重启**
-
-保存 Common Config 后重启 cc-switch。之后每次 Claude Code 会话启动时，cc-switch 会自动在后台拉起 image-proxy。
-
-### 验证是否生效
-
-发送一张图片给 Claude Code，观察终端日志：
-
-```
-[image-proxy] Processing 1 image(s) in parallel...
-[image-proxy] VL calls completed in 1234ms
-[image-proxy] Images processed: 1, new body: 5678 bytes (was 123456)
-```
-
-如果看到 `[image-proxy]` 开头的日志，说明图片已被成功拦截并识别。
+> image-proxy 有端口防重机制——重复启动会自动检测并静默退出，不用担心多实例问题。
 
 ---
 
@@ -297,46 +240,6 @@ cc-switch UI → 设置 → Common Config
 | `custom` | 手动指定 | 手动指定 | 是 |
 
 **推荐组合：** `qwen` + `qwen3.5-omni-plus`，中文识别准确率高，性价比好。
-
-**任何兼容 OpenAI `/chat/completions` 接口的 VL 服务都可以通过 `provider: "custom"` + 手动设定 `base_url` 和 `model` 接入。**
-
----
-
-## 独立运行（不使用 cc-switch）
-
-如果你有自己的 Anthropic→OpenAI 中转方案（不经过 cc-switch），也可以使用 image-proxy。
-
-**架构变成：**
-
-```
-Claude Code → 你的中转代理 (端口 xxxx) → image-proxy (端口 8787) → DeepSeek
-```
-
-或者将 image-proxy 放在更上游：
-
-```
-Claude Code → image-proxy (端口 8787) → DeepSeek (直接)
-```
-
-在第二种方案中，`ANTHROPIC_BASE_URL` 应指向 image-proxy 的地址，image-proxy 再转发到 DeepSeek：
-
-```json
-{
-  "env": {
-    "ANTHROPIC_AUTH_TOKEN": "your-token",
-    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8787",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-4-5",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4-6",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-7[1M]"
-  }
-}
-```
-
-并在 image-proxy 的环境变量中设置上游地址：
-
-```bash
-UPSTREAM_HOST=api.deepseek.com UPSTREAM_PATH=/ node image-proxy.js
-```
 
 ---
 
@@ -395,9 +298,19 @@ curl http://127.0.0.1:8787/health
 
 返回中文错误信息给 Claude Code：`[图片识别失败: HTTP 503]` 等。可恢复的错误（HTTP 5xx）自动重试一次。
 
-### Q: 每次会话都执行 SessionStart hook，会不会启动一堆重复的 image-proxy 进程？
+### Q: 每次启动 Claude Code 会不会启动一堆重复的 image-proxy 进程？
 
 不会。image-proxy 启动时会检测端口 8787 是否已被占用——如果端口已在使用且 `/health` 返回正常，新进程会静默退出（`Already running, exiting.`），确保只有一个实例在后台运行。
+
+### Q: 上游 LLM 不是 DeepSeek，还能用吗？
+
+可以。通过环境变量修改上游地址：
+
+```bash
+UPSTREAM_HOST=api.openai.com UPSTREAM_PATH=/v1/messages node image-proxy.js
+```
+
+只要上游服务支持 Anthropic Messages API 格式即可。
 
 ---
 
