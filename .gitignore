@@ -1,0 +1,8 @@
+# Claude Vision Skill
+
+node_modules/
+config.json
+*.log
+.env
+.DS_Store
+Thumbs.db

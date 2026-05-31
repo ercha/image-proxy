@@ -1,0 +1,8 @@
+{
+  "provider": "qwen",
+  "api_key": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "model": "qwen3.5-omni-plus",
+  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "port": 8787,
+  "prompt": "请用中文详细描述这张图片的内容。"
+}

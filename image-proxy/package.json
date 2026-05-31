@@ -1,0 +1,8 @@
+{
+  "name": "image-proxy",
+  "version": "1.0.0",
+  "description": "Intercept Anthropic-format image blocks and convert to text via VL models",
+  "type": "module",
+  "main": "image-proxy.js",
+  "private": true
+}
